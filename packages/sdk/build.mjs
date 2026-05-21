@@ -18,5 +18,5 @@ if (watch) {
 } else {
   await ctx.rebuild();
   await ctx.dispose();
-  console.log('SDK built → dist/tracker.js');
+  console.log('SDK built -> dist/tracker.js');
 }

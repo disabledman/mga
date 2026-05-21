@@ -6,6 +6,7 @@ import {
   failQueueIds,
   initSchema,
   openDb,
+  reclaimStuckProcessing,
   toMssqlDto,
   type AnalyticsEvent,
   type MssqlBatchRequest,
@@ -20,6 +21,11 @@ const MSSQL_API_TOKEN = process.env.MGA_MSSQL_API_TOKEN ?? 'dev-token-change-me'
 
 const db = openDb();
 initSchema(db);
+
+const reclaimed = reclaimStuckProcessing(db);
+if (reclaimed > 0) {
+  console.log(`[writer] reclaimed ${reclaimed} stuck processing queue row(s)`);
+}
 
 let backoffUntil = 0;
 
@@ -87,6 +93,7 @@ async function processOnce(): Promise<void> {
 
   if (events.length === 0) {
     ackQueueIds(db, ids);
+    console.warn(`[writer] dropped ${ids.length} queue row(s): event schema parse failed`);
     return;
   }
 
@@ -112,7 +119,7 @@ async function processOnce(): Promise<void> {
   }
 }
 
-console.log(`Writer polling every ${POLL_MS}ms → ${MSSQL_API_URL}`);
+console.log(`Writer polling every ${POLL_MS}ms -> ${MSSQL_API_URL}`);
 
 async function loop(): Promise<void> {
   for (;;) {

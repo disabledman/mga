@@ -7,12 +7,14 @@ import {
   anonymizeIp,
   collectPayloadSchema,
   enqueueEvents,
+  getProcessingDepth,
   getQueueDepth,
   hostMatchesAllowed,
   initSchema,
   isBotUserAgent,
   openDb,
   parseAllowedHosts,
+  resolveDbPath,
   type SiteConfig,
 } from '@mga/shared';
 
@@ -23,6 +25,7 @@ const SDK_MAP_PATH = join(SDK_DIR, 'tracker.js.map');
 const DEMO_PATH = join(__dirname, '../../../examples/demo.html');
 
 const PORT = Number(process.env.MGA_COLLECTOR_PORT ?? 7080);
+const DB_PATH = resolveDbPath();
 const db = openDb();
 initSchema(db);
 
@@ -53,6 +56,10 @@ function loadSite(siteId: string): SiteConfig | null {
   };
 }
 
+const demoSite = loadSite('s_demo');
+console.log(`Collector DB: ${DB_PATH}`);
+console.log(`Collector s_demo allowed_hosts: ${JSON.stringify(demoSite?.allowed_hosts ?? [])}`);
+
 const ipRateMap = new Map<string, { count: number; resetAt: number }>();
 const visitorRateMap = new Map<string, { count: number; resetAt: number }>();
 const IP_RATE_LIMIT = Number(process.env.MGA_RATE_LIMIT_IP ?? 120);
@@ -77,7 +84,21 @@ await app.register(cors, {
   methods: ['POST', 'OPTIONS', 'GET'],
 });
 
-app.get('/health', async () => ({ ok: true, queue_depth: getQueueDepth(db) }));
+app.get('/health', async () => {
+  const site = loadSite('s_demo');
+  const allowed = site?.allowed_hosts ?? [];
+  return {
+    ok: true,
+    db_path: DB_PATH,
+    queue_depth: getQueueDepth(db),
+    processing_depth: getProcessingDepth(db),
+    demo_allowed_hosts: allowed,
+    demo_host_checks: {
+      '192.168.10.7': hostMatchesAllowed('192.168.10.7', allowed),
+      '127.0.0.1': hostMatchesAllowed('127.0.0.1', allowed),
+    },
+  };
+});
 
 app.get('/sdk/tracker.js', async (_request, reply) => {
   try {
@@ -130,7 +151,11 @@ app.post('/v1/collect', async (request, reply) => {
     host = '';
   }
   if (host && !hostMatchesAllowed(host, site.allowed_hosts)) {
-    return reply.code(403).send({ error: 'origin_not_allowed', host });
+    request.log.warn(
+      { host, allowed_hosts: site.allowed_hosts, db_path: DB_PATH },
+      'origin_not_allowed'
+    );
+    return reply.code(403).send({ error: 'origin_not_allowed', host, allowed_hosts: site.allowed_hosts });
   }
 
   const clientIp = anonymizeIp(

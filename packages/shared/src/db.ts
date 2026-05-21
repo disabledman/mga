@@ -1,10 +1,42 @@
 import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-export const DEFAULT_DB_PATH = resolve(__dirname, '../../../data/mga.db');
+
+/** Walk up from module location (works from packages/shared/dist or node_modules/@mga/shared/dist). */
+export function findMgaProjectRoot(startDir = __dirname): string {
+  let dir = resolve(startDir);
+  for (let i = 0; i < 12; i++) {
+    const pkgPath = join(dir, 'package.json');
+    if (existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { name?: string };
+        if (pkg.name === 'mga') return dir;
+      } catch {
+        /* try parent */
+      }
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return resolve(startDir, '../../..');
+}
+
+export const PROJECT_ROOT = findMgaProjectRoot();
+export const DEFAULT_DB_PATH = resolve(PROJECT_ROOT, 'data/mga.db');
+
+/** Resolve MGA_DB_PATH relative to project root so all services share one DB. */
+export function resolveDbPath(): string {
+  const raw = process.env.MGA_DB_PATH;
+  if (!raw) return DEFAULT_DB_PATH;
+  if (raw.startsWith('/') || /^[A-Za-z]:[\\/]/.test(raw)) {
+    return resolve(raw);
+  }
+  return resolve(PROJECT_ROOT, raw);
+}
 
 export type MgaDatabase = DatabaseSync;
 
@@ -27,7 +59,7 @@ function syncSleep(ms: number): void {
   }
 }
 
-export function openDb(dbPath = process.env.MGA_DB_PATH ?? DEFAULT_DB_PATH): MgaDatabase {
+export function openDb(dbPath = resolveDbPath()): MgaDatabase {
   mkdirSync(dirname(dbPath), { recursive: true });
   const db = new DatabaseSync(dbPath);
   db.exec('PRAGMA journal_mode = WAL');
@@ -150,8 +182,28 @@ export function initSchema(db: MgaDatabase): void {
     db.prepare(`
       INSERT INTO analytics_sites (site_id, tenant_id, name, write_key, allowed_hosts, is_active)
       VALUES (?, ?, ?, ?, ?, 1)
-    `).run('s_demo', 't_demo', 'Demo Site', 'wk_demo_change_in_production', JSON.stringify(['localhost', '127.0.0.1', '*.localhost']));
+    `).run(
+      's_demo',
+      't_demo',
+      'Demo Site',
+      'wk_demo_change_in_production',
+      JSON.stringify(['localhost', '127.0.0.1', '*.localhost', '192.168.*', '10.*'])
+    );
   }
+}
+
+export function reclaimStuckProcessing(db: MgaDatabase): number {
+  const result = db
+    .prepare(`UPDATE event_queue SET status = 'pending' WHERE status = 'processing'`)
+    .run();
+  return Number(result.changes);
+}
+
+export function getProcessingDepth(db: MgaDatabase): number {
+  const row = db.prepare(`SELECT COUNT(*) AS c FROM event_queue WHERE status = 'processing'`).get() as {
+    c: number;
+  };
+  return row.c;
 }
 
 export function enqueueEvents(db: MgaDatabase, events: unknown[]): number {

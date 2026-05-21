@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import {
   getDlqCount,
+  getProcessingDepth,
   getQueueDepth,
   initSchema,
   listDlq,
@@ -37,6 +38,7 @@ function requireAdmin(request: { headers: Record<string, unknown> }, reply: { co
 app.get('/health', async () => ({
   ok: true,
   queue_depth: getQueueDepth(db),
+  processing_depth: getProcessingDepth(db),
   dlq_count: getDlqCount(db),
 }));
 

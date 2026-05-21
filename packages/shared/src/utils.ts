@@ -19,7 +19,7 @@ export function anonymizeIp(ip: string | undefined): string | undefined {
 export function parseAllowedHosts(raw: string): string[] {
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (Array.isArray(parsed)) return parsed.map(String);
+    if (Array.isArray(parsed)) return parsed.map((h) => String(h).trim()).filter(Boolean);
   } catch {
     /* fall through */
   }
@@ -27,12 +27,21 @@ export function parseAllowedHosts(raw: string): string[] {
 }
 
 export function hostMatchesAllowed(host: string, allowed: string[]): boolean {
-  const h = host.toLowerCase();
+  const h = host.toLowerCase().trim();
   return allowed.some((pattern) => {
     const p = pattern.toLowerCase();
     if (p.startsWith('*.')) {
       const suffix = p.slice(1);
       return h === p.slice(2) || h.endsWith(suffix);
+    }
+    if (p.endsWith('.*')) {
+      return h.startsWith(p.slice(0, -2));
+    }
+    if (p.includes('*')) {
+      const parts = p.split('.');
+      const hostParts = h.split('.');
+      if (parts.length !== hostParts.length) return false;
+      return parts.every((seg, i) => seg === '*' || seg === hostParts[i]);
     }
     return h === p;
   });

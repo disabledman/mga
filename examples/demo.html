@@ -19,8 +19,8 @@
 <body>
   <p class="hint">
     請用 HTTP 開啟（勿用 file://）。執行 <code>npm run dev</code> 後開啟
-    <a href="http://localhost:7080/demo.html">http://localhost:7080/demo.html</a>
-    （或另開 <code>npm run demo</code> → <a href="http://localhost:7500/demo.html">:7500</a>）。
+    <a href="/demo.html">/demo.html</a>（Collector :7080）
+    或 <code>npm run demo</code> → <a href="http://localhost:7500/demo.html">:7500</a>。
   </p>
   <div id="status">✓ Demo 已自動啟用 Cookie 追蹤，可直接點下方按鈕測試。</div>
   <div id="banner" style="display: none;">
@@ -28,7 +28,7 @@
     <button type="button" class="no-track" id="deny">拒絕追蹤（測試用）</button>
   </div>
   <h1>MGA 追蹤示範</h1>
-  <p>點下方按鈕後，約 2～4 秒在 <a href="http://localhost:7808" target="_blank">Dashboard :7808</a> 查看。</p>
+  <p>點下方按鈕後，約 2～4 秒在 Dashboard 查看（同 host 的 <a href="/" target="_blank" id="dash-link">:7808</a> 或本機 <a href="http://127.0.0.1:7808" target="_blank">127.0.0.1:7808</a>）。</p>
   <button type="button" data-track="demo_cta">主要 CTA</button>
   <a href="https://example.com" data-track="demo_outbound">外連範例</a>
   <button type="button" class="no-track" id="custom">自訂事件</button>
@@ -66,7 +66,7 @@
       }]);
     })();
   </script>
-  <script src="http://localhost:7080/sdk/tracker.js"></script>
+  <script src="/sdk/tracker.js"></script>
   <script>
     (function () {
       var setStatus = window.__mgaSetStatus;
