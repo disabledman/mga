@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mga.local/schemas/event.schema.json",
+  "title": "AnalyticsEvent",
+  "type": "object",
+  "required": [
+    "event_id",
+    "tenant_id",
+    "site_id",
+    "event_name",
+    "timestamp",
+    "client_ts",
+    "session_id",
+    "visitor_id"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "tenant_id": { "type": "string", "maxLength": 32 },
+    "site_id": { "type": "string", "maxLength": 32 },
+    "event_name": { "type": "string", "maxLength": 64 },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "client_ts": { "type": "string", "format": "date-time" },
+    "session_id": { "type": "string", "minLength": 8, "maxLength": 64 },
+    "visitor_id": { "type": "string", "minLength": 8, "maxLength": 64 },
+    "page_url": { "type": "string", "maxLength": 2048 },
+    "page_path": { "type": "string", "maxLength": 2048 },
+    "referrer": { "type": "string", "maxLength": 2048 },
+    "user_agent": { "type": "string", "maxLength": 512 },
+    "device_type": { "type": "string", "enum": ["desktop", "mobile", "tablet", "unknown"] },
+    "browser": { "type": "string", "maxLength": 64 },
+    "os": { "type": "string", "maxLength": 64 },
+    "country": { "type": "string", "minLength": 2, "maxLength": 2 },
+    "track_id": { "type": "string", "maxLength": 128 },
+    "consent_granted": { "type": "boolean" },
+    "properties": { "type": "object", "additionalProperties": true }
+  },
+  "additionalProperties": false
+}

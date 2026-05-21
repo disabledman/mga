@@ -1,0 +1,16 @@
+{
+  "name": "@mga/writer",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@mga/shared": "*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3"
+  }
+}

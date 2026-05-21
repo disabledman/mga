@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MGA Dashboard</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>MGA Analytics</h1>
+    <p class="sub">tenant <code>t_demo</code> · site <code>s_demo</code></p>
+  </header>
+  <section class="cards" id="overview"></section>
+  <section>
+    <h2>近 24 小時趨勢（PV / 點擊）</h2>
+    <p class="section-note">藍色 = PV · 綠色 = 點擊 · 滑鼠移入長條顯示次數</p>
+    <div class="chart-wrap">
+      <canvas id="hourlyChart" width="800" height="240"></canvas>
+      <div id="hourlyTooltip" class="chart-tooltip" hidden></div>
+    </div>
+  </section>
+  <div class="grid">
+    <section>
+      <h2>頁面 Top</h2>
+      <p class="section-note">近 7 天累計（依 UTC 日曆日彙總）</p>
+      <table id="pages"><thead><tr><th>路徑</th><th>瀏覽</th></tr></thead><tbody></tbody></table>
+    </section>
+    <section>
+      <h2>點擊 / 自訂事件 Top（data-track）</h2>
+      <p class="section-note">近 7 天累計（依 UTC 日曆日彙總）</p>
+      <table id="clicks"><thead><tr><th>Track ID</th><th>點擊</th></tr></thead><tbody></tbody></table>
+    </section>
+  </div>
+  <section>
+    <h2>最近事件</h2>
+    <p class="section-note">最新 20 筆事件（不限天數，依時間由新到舊）</p>
+    <table id="recent"><thead><tr><th>時間</th><th>事件</th><th>路徑</th><th>Track</th></tr></thead><tbody></tbody></table>
+  </section>
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mga.local/schemas/mssql-batch.schema.json",
+  "title": "MssqlBatchRequest",
+  "type": "object",
+  "required": ["batch_id", "source", "events"],
+  "properties": {
+    "batch_id": { "type": "string", "format": "uuid" },
+    "source": { "type": "string", "maxLength": 64 },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "required": [
+          "event_id",
+          "tenant_id",
+          "site_id",
+          "event_name",
+          "event_time_utc",
+          "session_id",
+          "visitor_id"
+        ],
+        "properties": {
+          "event_id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string" },
+          "site_id": { "type": "string" },
+          "event_name": { "type": "string" },
+          "event_time_utc": { "type": "string", "format": "date-time" },
+          "session_id": { "type": "string" },
+          "visitor_id": { "type": "string" },
+          "page_url": { "type": "string" },
+          "page_path": { "type": "string" },
+          "referrer": { "type": "string" },
+          "user_agent": { "type": "string" },
+          "device_type": { "type": "string" },
+          "browser": { "type": "string" },
+          "os": { "type": "string" },
+          "country_code": { "type": "string" },
+          "track_id": { "type": "string" },
+          "properties_json": { "type": "string" },
+          "consent_granted": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

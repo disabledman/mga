@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>MGA SDK Demo</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+    button, a { margin: 0.5rem 0.5rem 0.5rem 0; }
+    #banner { background: #1a2332; color: #fff; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+    #status {
+      padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.95rem;
+      background: #d1e7dd; border: 1px solid #badbcc; color: #0f5132;
+    }
+    #status.warn { background: #fff3cd; border-color: #ffc107; color: #664d03; }
+    #status.err { background: #f8d7da; border-color: #f5c2c7; color: #842029; }
+    .hint { color: #555; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <p class="hint">
+    請用 HTTP 開啟（勿用 file://）。執行 <code>npm run dev</code> 後開啟
+    <a href="http://localhost:7080/demo.html">http://localhost:7080/demo.html</a>
+    （或另開 <code>npm run demo</code> → <a href="http://localhost:7500/demo.html">:7500</a>）。
+  </p>
+  <div id="status">✓ Demo 已自動啟用 Cookie 追蹤，可直接點下方按鈕測試。</div>
+  <div id="banner" style="display: none;">
+    <p>本頁使用 Cookie 進行流量分析（Demo 預設已接受）。</p>
+    <button type="button" class="no-track" id="deny">拒絕追蹤（測試用）</button>
+  </div>
+  <h1>MGA 追蹤示範</h1>
+  <p>點下方按鈕後，約 2～4 秒在 <a href="http://localhost:7808" target="_blank">Dashboard :7808</a> 查看。</p>
+  <button type="button" data-track="demo_cta">主要 CTA</button>
+  <a href="https://example.com" data-track="demo_outbound">外連範例</a>
+  <button type="button" class="no-track" id="custom">自訂事件</button>
+
+  <script>
+    (function () {
+      var apiHost = window.location.protocol.startsWith('http')
+        ? (window.location.port === '7080' ? window.location.origin : 'http://localhost:7080')
+        : 'http://localhost:7080';
+
+      var statusEl = document.getElementById('status');
+      function setStatus(msg, kind) {
+        statusEl.textContent = msg;
+        statusEl.className = kind || '';
+      }
+      window.__mgaSetStatus = setStatus;
+
+      window.analytics = window.analytics || function () {
+        (window.analytics.q = window.analytics.q || []).push([].slice.call(arguments));
+      };
+      window.analytics.q = window.analytics.q || [];
+      window.analytics.push = function (cmd) {
+        window.analytics.q.push(cmd);
+      };
+      window.analytics.push(['init', {
+        siteId: 's_demo',
+        writeKey: 'wk_demo_change_in_production',
+        tenantId: 't_demo',
+        apiHost: apiHost,
+        consentRequired: false,
+        allowIdentify: true,
+        blockPaths: ['/account/*'],
+        autoTrack: { pageView: true, clicks: true, outboundLinks: true },
+        clickSelector: '[data-track], a[href]',
+      }]);
+    })();
+  </script>
+  <script src="http://localhost:7080/sdk/tracker.js"></script>
+  <script>
+    (function () {
+      var setStatus = window.__mgaSetStatus;
+
+      if (!window.MgaAnalytics) {
+        setStatus('SDK 未初始化（init 未執行）。請重新 build SDK：npm run build -w @mga/sdk', 'err');
+        return;
+      }
+      analytics('consent', 'grant');
+      analytics('flush');
+
+      document.getElementById('deny').onclick = function () {
+        analytics('consent', 'deny');
+        setStatus('已拒絕追蹤，後續點擊不會送出事件。', 'err');
+      };
+      document.getElementById('custom').onclick = function () {
+        analytics('track', 'signup_click', { track_id: 'custom_signup' });
+        analytics('flush');
+      };
+
+      setTimeout(function () {
+        if (typeof analytics !== 'function') {
+          setStatus('SDK 未載入。請確認 npm run dev 且 http://localhost:7080/sdk/tracker.js 可開啟。', 'err');
+        }
+      }, 1500);
+    })();
+  </script>
+</body>
+</html>

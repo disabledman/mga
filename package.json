@@ -1,0 +1,27 @@
+{
+  "name": "mga",
+  "private": true,
+  "version": "0.1.0",
+  "description": "MGA — Multi-tenant web analytics (Collect → Queue → MSSQL API)",
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "build": "npm run build -w @mga/shared && npm run build -w @mga/sdk && npm run build --workspaces --if-present",
+    "predev": "npm run build -w @mga/shared && npm run build -w @mga/sdk",
+    "dev": "concurrently -n collector,writer,mock,query,dash -c blue,green,yellow,magenta,cyan \"npm run dev -w @mga/collector\" \"npm run dev -w @mga/writer\" \"npm run dev -w @mga/mock-mssql-api\" \"npm run dev -w @mga/query-api\" \"npm run dev -w @mga/dashboard\"",
+    "db:init": "node scripts/init-db.mjs",
+    "maintenance:purge": "npm run build -w @mga/shared && node scripts/maintenance.mjs",
+    "demo": "npx --yes serve examples -l 7500"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "concurrently": "^9.1.2",
+    "typescript": "^5.8.3"
+  }
+}
