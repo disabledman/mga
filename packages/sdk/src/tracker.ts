@@ -60,6 +60,9 @@ let optedOut = false;
 let droppedOverflow = 0;
 let superProps: Record<string, unknown> = {};
 let identifiedUserId: string | null = null;
+let lastPageViewPath = '';
+let lastPageViewAt = 0;
+let spaNavTimer: ReturnType<typeof setTimeout> | null = null;
 
 function uuid(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -287,6 +290,12 @@ async function flush(): Promise<void> {
 }
 
 function trackPage(extra?: Record<string, unknown>): void {
+  const path = location.pathname + location.search;
+  const now = Date.now();
+  if (path === lastPageViewPath && now - lastPageViewAt < 1500) return;
+  lastPageViewPath = path;
+  lastPageViewAt = now;
+
   const hold = Boolean(config?.consentRequired && consent === 'pending');
   const ev = buildEvent('page_view', extra);
   if (ev) enqueue(ev, hold);
@@ -348,7 +357,11 @@ function hookSpa(): void {
   const origReplace = history.replaceState.bind(history);
 
   const onNav = (): void => {
-    setTimeout(() => trackPage({ spa: true }), 300);
+    if (spaNavTimer) clearTimeout(spaNavTimer);
+    spaNavTimer = setTimeout(() => {
+      spaNavTimer = null;
+      trackPage({ spa: true });
+    }, 300);
   };
 
   history.pushState = (...args) => {

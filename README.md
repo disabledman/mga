@@ -46,93 +46,167 @@ npm run dev
 - `write_key`: `wk_demo_change_in_production`
 - `tenant_id`: `t_demo`
 
-### 嵌入 SDK
+### Demo 頁面（快速驗證）
 
-```html
-<script>
-  window.analytics = window.analytics || function () {
-    (window.analytics.q = window.analytics.q || []).push([].slice.call(arguments));
-  };
-  window.analytics.q = window.analytics.q || [];
-  window.analytics.push = function (cmd) { window.analytics.q.push(cmd); };
-  window.analytics.push(['init', {
-    siteId: 's_demo',
-    writeKey: 'wk_demo_change_in_production',
-    apiHost: 'http://localhost:7080',
-    consentRequired: true,
-    autoTrack: { pageView: true, clicks: true },
-    clickSelector: '[data-track], a, button',
-  }]);
-</script>
-<script src="http://localhost:7080/sdk/tracker.js"></script>
+內建示範頁 [`examples/demo.html`](examples/demo.html)，由 Collector 以 `GET /demo.html` 提供。
+
+```bash
+npm run dev
 ```
 
-點擊追蹤請在元素上加 `data-track="button_name"`。
+| 開啟方式 | URL | 說明 |
+|----------|-----|------|
+| **推薦** | `http://localhost:7080/demo.html` | SDK 用相對路徑 `/sdk/tracker.js`，`apiHost` 自動為目前 origin |
+| LAN 測試 | `http://192.168.x.x:7080/demo.html` | 同網段其他電腦可測；需 `npm run db:init` 更新 `allowed_hosts` |
+| 靜態伺服器 | `npm run demo` → `:7500/demo.html` | 頁面不在 7080 時，`apiHost` 會 fallback 到 `http://localhost:7080`，**僅適合本機** |
+
+Demo 預設 `consentRequired: false` 並自動 `consent('grant')`，可直接點「主要 CTA」測試。約 2～4 秒後到 Dashboard（`:7808`）看報表。
+
+診斷工具（在專案根目錄執行）：
+
+```bash
+npm run diag:pipeline    # 端到端：health → collect → writer flush
+npm run diag:queue       # 佇列狀態；加 --reset 重設卡住的 processing
+npm run db:init          # 初始化 DB、合併 LAN allowed_hosts、reclaim 佇列
+```
+
+終端機應依序出現 `[collector] collect accepted` 與 `[writer] flushed`；若只有前者，見下方「常見錯誤」。
+
+### 嵌入 SDK
+
+#### 1. 基本模式（與 Demo 相同）
+
+**順序很重要：** 先 stub + `init` 排進佇列，再載入 `tracker.js`。
+
+```html
+<!-- 1. stub + init（inline，在 tracker.js 之前） -->
+<script>
+  (function () {
+    // 頁面由 Collector :7080 提供時，用相對路徑即可（LAN 也能用）
+    var apiHost = window.location.protocol.startsWith('http')
+      ? (window.location.port === '7080' ? window.location.origin : 'https://ga.example.com')
+      : 'https://ga.example.com';
+
+    window.analytics = window.analytics || function () {
+      (window.analytics.q = window.analytics.q || []).push([].slice.call(arguments));
+    };
+    window.analytics.q = window.analytics.q || [];
+    window.analytics.push = function (cmd) { window.analytics.q.push(cmd); };
+
+    window.analytics.push(['init', {
+      siteId: 's_demo',
+      writeKey: 'wk_demo_change_in_production',
+      tenantId: 't_demo',
+      apiHost: apiHost,
+      consentRequired: false,          // 正式站建議 true，並在同意後 analytics('consent','grant')
+      allowIdentify: true,
+      blockPaths: ['/account/*'],      // 不追蹤的路徑（glob）
+      autoTrack: {
+        pageView: true,
+        clicks: true,
+        outboundLinks: true,
+      },
+      clickSelector: '[data-track], a[href]',
+    }]);
+  })();
+</script>
+<!-- 2. 載入 SDK（Collector 同網域時用相對路徑） -->
+<script src="/sdk/tracker.js"></script>
+<!-- 3. 可選：Demo 會自動 grant consent 並 flush -->
+<script>
+  if (window.MgaAnalytics) {
+    analytics('consent', 'grant');
+    analytics('flush');
+  }
+</script>
+```
+
+#### 2. 點擊與自訂事件
+
+| 用途 | 作法 |
+|------|------|
+| 追蹤按鈕 / 連結 | 元素加 `data-track="track_id"`（例：`data-track="demo_cta"`） |
+| 外連 | `<a href="https://..." data-track="demo_outbound">`（需 `outboundLinks: true`） |
+| 排除不追蹤 | 元素加 `class="no-track"` |
+| 自訂事件 | `analytics('track', 'event_name', { track_id: '...' }); analytics('flush');` |
+
+#### 3. `init` 選項摘要
+
+| 選項 | Demo 值 | 說明 |
+|------|---------|------|
+| `siteId` / `writeKey` | `s_demo` / `wk_demo_change_in_production` | 站點識別，須與 DB `analytics_sites` 一致 |
+| `tenantId` | `t_demo` | 租戶 ID（報表查詢用） |
+| `apiHost` | 動態或正式網域 | Collect API 根 URL，**不含** `/v1/collect` |
+| `consentRequired` | `false` | `true` 時須先 `analytics('consent','grant')` 才送事件 |
+| `autoTrack` | pageView / clicks / outboundLinks | 自動追蹤 |
+| `clickSelector` | `[data-track], a[href]` | 點擊委派選擇器 |
+| `blockPaths` | `['/account/*']` | 不送事件的路徑 |
+
+#### 4. URL 怎麼填（本機 / LAN / 正式）
+
+| 情境 | `apiHost` | `<script src>` |
+|------|-----------|----------------|
+| 頁面由 Collector :7080 提供（含 LAN） | `window.location.origin` 或省略改相對 collect | `/sdk/tracker.js` |
+| 頁面在其他網域 / 埠 | Collector 對外 URL（例 `https://ga.example.com`） | 同左 + `/sdk/tracker.js` |
+| 本機靜態頁（`:7500` 等） | `http://localhost:7080` 或 LAN IP | `http://<collector-host>:7080/sdk/tracker.js` |
+
+服務彼此通訊（Writer → Mock API）請用 `127.0.0.1`（見 `.env` 的 `MGA_MSSQL_API_URL`），與瀏覽器端的 `apiHost` 無關。
+
+#### 5. `allowed_hosts`（Collect 403 時必查）
+
+Collect 會檢查請求 `Origin` 的 hostname。LAN IP 或新網域需加入 DB：
+
+```bash
+npm run db:init   # 自動合併 192.168.*、10.*、172.* 及本機 IPv4
+```
+
+或手動更新 `analytics_sites.allowed_hosts`（`site_id = 's_demo'`）。  
+確認 Collector 啟動 log 為 `Collector DB: .../data/mga.db`（**不是** `node_modules/data/mga.db`）。
 
 ### SDK 異動與 build 流程
 
-SDK 原始碼在 `packages/sdk/src/tracker.ts`，瀏覽器實際載入的是編譯產物 `packages/sdk/dist/tracker.js`。Collector 透過 `GET /sdk/tracker.js` 讀取該檔案對外提供（見 [services/collector/src/index.ts](services/collector/src/index.ts)）。
+SDK 原始碼在 `packages/sdk/src/tracker.ts`，瀏覽器載入編譯產物 `packages/sdk/dist/tracker.js`。Collector 以 `GET /sdk/tracker.js` 提供（見 [services/collector/src/index.ts](services/collector/src/index.ts)）。
 
 ```
 packages/sdk/src/tracker.ts
     npm run build -w @mga/sdk
 packages/sdk/dist/tracker.js
     Collector GET /sdk/tracker.js
-    正式頁 <script src=".../sdk/tracker.js">
+    頁面 <script src="/sdk/tracker.js">
 ```
 
 #### 何時需要 build
 
 | 情境 | 指令 |
 |------|------|
-| 修改 `packages/sdk/` 內程式 | `npm run build -w @mga/sdk` |
-| 第一次 clone / 清過 `dist/` | `npm run build` 或至少 build SDK |
-| `npm run dev` 前 | 根目錄 `predev` 會自動 build shared + SDK |
-| 正式區部署 | `npm run build`（含 SDK）後再 `npm run start` |
+| 修改 `packages/sdk/` | `npm run build -w @mga/sdk` |
+| 修改 `packages/shared/` | `npm run build -w @mga/shared`，**並重啟** `npm run dev` |
+| 第一次 clone / 清過 `dist/` | `npm run build` |
+| `npm run dev` 前 | `predev` 會自動 build shared + SDK |
+| 正式區部署 | `npm run build` 後 `npm run start` |
 
-改完 SDK 後**不必重啟 Collector**（每次請求會重新讀 `dist/tracker.js`），但瀏覽器可能快取舊檔，請 **硬重新整理**（Ctrl+F5）或開無痕視窗驗證。
-
-#### 嵌入順序（重要）
-
-`init` 必須在載入 `tracker.js` **之前**排進佇列：
-
-```html
-<!-- 1. stub + init -->
-<script>
-  window.analytics = window.analytics || function () { ... };
-  window.analytics.push(['init', { siteId: '...', writeKey: '...', apiHost: '...' }]);
-</script>
-<!-- 2. 再載入 SDK -->
-<script src="http://localhost:7080/sdk/tracker.js"></script>
-```
-
-若順序反了，或 `tracker.js` 404 / 未 build，Demo 會顯示：**「SDK 未初始化（init 未執行）。請重新 build SDK：npm run build -w @mga/sdk」**（`window.MgaAnalytics` 不存在）。
-
-#### 常見錯誤對照
-
-| 現象 | 原因 | 處理 |
-|------|------|------|
-| Demo：**SDK 未初始化（init 未執行）** | `dist/tracker.js` 不存在或載入失敗；或 init 在 tracker.js 之後 | `npm run build -w @mga/sdk`；確認 `<script src>` 在 init 之後；看 Network 是否 200 |
-| Demo：**SDK 未載入** | Collector 未啟動或 URL 錯誤 | `npm run dev`；開 `http://localhost:7080/sdk/tracker.js` 應有 JS 內容 |
-| Collect 404 `sdk_not_built` | 未 build SDK | `npm run build -w @mga/sdk` |
-| 改了 SDK 但行為沒變 | 瀏覽器快取 | 硬重新整理；或 DevTools 勾 Disable cache |
+改 SDK 後不必重啟 Collector（每次請求重讀 `dist/tracker.js`），但瀏覽器可能快取，請 **Ctrl+F5** 或 DevTools 勾 Disable cache。
 
 #### 本機開發 SDK（可選）
-
-僅改 SDK、其餘服務已跑時，可另開終端機監聽重建：
 
 ```bash
 npm run dev -w @mga/sdk
 ```
 
-存檔後會自動輸出 `dist/tracker.js`，再重新整理測試頁即可。
+存檔後自動輸出 `dist/tracker.js`，重新整理測試頁即可。
 
-開啟 **http://localhost:7080/demo.html**（只需 `npm run dev`），Demo 會**自動啟用** Cookie 追蹤，直接點按鈕即可；數秒後在 http://localhost:7808 查看報表。
+#### 常見錯誤
 
-正式區僅 Collector 對外時，嵌入改用 `https://ga.pmatch.com.tw`（Nginx 內轉 `127.0.0.1:7080`），`apiHost` 與 `<script src>` 皆指向該網域。
+| 現象 | 原因 | 處理 |
+|------|------|------|
+| Demo：**SDK 未初始化** | `dist/tracker.js` 不存在；或 init 在 tracker.js 之後 | `npm run build -w @mga/sdk`；確認嵌入順序 |
+| Demo：**SDK 未載入** | Collector 未啟動或 script URL 錯誤 | `npm run dev`；Network 確認 `/sdk/tracker.js` 200 |
+| Collect **403** `origin_not_allowed` | `allowed_hosts` 不含頁面 host | `npm run db:init`；重啟 dev；看 Collector 啟動的 `allowed_hosts` |
+| 有 `[collector]` 無 `[writer] flushed` | Writer / Mock :7090 未跑；或 Collect 其實 403 未入佇列 | `npm run diag:pipeline`；確認五個服務皆啟動 |
+| Collector DB 指向 `node_modules/data/` | 舊版 shared 路徑 bug | 更新程式、`npm run build -w @mga/shared`、重啟 dev |
+| 改了 SDK 行為沒變 | 瀏覽器快取 | 硬重新整理 |
 
-
-若終端機沒有 `[collector] collect accepted` 或 `[writer] flushed`，代表事件未送出（常見原因：用 file:// 開頁、Collector 未啟動）。
+若終端機沒有 `[collector] collect accepted` 或 `[writer] flushed`，代表事件未完整送出（常見：`file://` 開頁、Collect 403、Writer 未啟動）。
 
 ## 正式區部署
 
@@ -203,19 +277,29 @@ Nginx 需轉發：`/sdk/tracker.js`、`/v1/collect`、`/v1/collect/beacon`。
 
 ### 5. 正式頁 SDK 嵌入
 
+與 Demo 相同的三段式嵌入，但 `apiHost` / `<script src>` 改為正式 GA 網域，且建議開啟 consent：
+
 ```html
 <script>
+  window.analytics = window.analytics || function () {
+    (window.analytics.q = window.analytics.q || []).push([].slice.call(arguments));
+  };
+  window.analytics.q = window.analytics.q || [];
+  window.analytics.push = function (cmd) { window.analytics.q.push(cmd); };
   window.analytics.push(['init', {
     siteId: 's_prod',
     writeKey: '<正式 write_key>',
+    tenantId: '<tenant_id>',
     apiHost: 'https://ga.pmatch.com.tw',
     consentRequired: true,
-    autoTrack: { pageView: true, clicks: true },
-    clickSelector: '[data-track], a, button',
+    autoTrack: { pageView: true, clicks: true, outboundLinks: true },
+    clickSelector: '[data-track], a[href]',
   }]);
 </script>
 <script src="https://ga.pmatch.com.tw/sdk/tracker.js"></script>
 ```
+
+使用者同意 Cookie 後再呼叫 `analytics('consent', 'grant')`。完整選項說明見上方「嵌入 SDK」。
 
 並在 DB `analytics_sites.allowed_hosts` 加入正式站網域（例：`pmatch.com.tw`、`www.pmatch.com.tw`），否則 Collect 回 `403 origin_not_allowed`。
 
@@ -260,6 +344,13 @@ Mock API 行為可參考 [services/mock-mssql-api/src/index.ts](services/mock-ms
 ```bash
 # 資料保留清理（EventRaw TTL）
 npm run maintenance:purge
+
+# 佇列 / 端到端診斷
+npm run diag:queue
+npm run diag:pipeline
+
+# DB 初始化、LAN allowed_hosts、reclaim 卡住佇列
+npm run db:init
 
 # DLQ 重放（需 x-admin-token）
 curl -X POST http://localhost:7100/v1/admin/dlq/replay -H "x-admin-token: admin-dev-token"
