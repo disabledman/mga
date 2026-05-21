@@ -1,5 +1,8 @@
 # MGA — Multi-tenant Web Analytics
 
+<img width="1858" height="932" alt="image" src="https://github.com/user-attachments/assets/d8214e96-86bd-4d0e-9b78-3beac89292ba" />
+
+
 依 PLAN 實作的 GA 類網頁行為監控：**SDK → Collect API → Queue → Writer → 公司 MSSQL 寫入 API**。
 
 本 repo 內含 **Mock MSSQL API**（SQLite 模擬 `analytics.EventRaw` 與彙總表），便於本機開發；上線時將 `MGA_MSSQL_API_URL` 指向公司真實 API 即可。
