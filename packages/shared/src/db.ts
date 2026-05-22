@@ -156,6 +156,8 @@ export function initSchema(db: MgaDatabase): void {
     );
     CREATE INDEX IF NOT EXISTS idx_event_raw_site_time
       ON event_raw(tenant_id, site_id, event_time_utc DESC);
+    CREATE INDEX IF NOT EXISTS idx_event_raw_visitor
+      ON event_raw(tenant_id, site_id, visitor_id);
 
     CREATE TABLE IF NOT EXISTS daily_page_views (
       stat_date TEXT NOT NULL,

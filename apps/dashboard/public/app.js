@@ -81,6 +81,34 @@ function renderOverview(data) {
     .replace(/<motion class="value">/g, '<div class="value">');
 }
 
+function renderVisitorCards(data) {
+  const retentionValue =
+    typeof data.retention_rate_pct === 'number'
+      ? data.retention_rate_pct.toFixed(1) + '%'
+      : '0%';
+  const items = [
+    [data.unique_visitors ?? 0, '不重複訪客（今日）', false],
+    [data.new_visitors ?? 0, '新訪客（今日）', false],
+    [data.returning_visitors ?? 0, '回訪客（今日）', false],
+    [retentionValue, '7天留存率（7天前活躍 → 近7天再訪）', true],
+  ];
+  const html = items
+    .map(function (triple) {
+      const extraClass = triple[2] ? ' card-retention' : '';
+      return (
+        '<div class="card card-visitor' +
+        extraClass +
+        '"><div class="value">' +
+        escapeHtml(String(triple[0])) +
+        '</div><div class="label">' +
+        escapeHtml(triple[1]) +
+        '</div></div>'
+      );
+    })
+    .join('');
+  document.getElementById('overview').insertAdjacentHTML('beforeend', html);
+}
+
 let hourlyHitRegions = [];
 
 function canvasPoint(canvas, clientX, clientY) {
@@ -236,6 +264,9 @@ async function refresh() {
   try {
     const overview = await api('/overview?site_id=s_demo');
     renderOverview(overview);
+
+    const visitors = await api('/visitors?site_id=s_demo');
+    renderVisitorCards(visitors);
 
     const pages = await api('/pages?site_id=s_demo&days=7');
     fillTable(document.querySelector('#pages tbody'), pages.pages, ['page_path', 'views']);

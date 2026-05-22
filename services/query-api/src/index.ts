@@ -35,6 +35,23 @@ function requireAdmin(request: { headers: Record<string, unknown> }, reply: { co
   return true;
 }
 
+const VISITOR_FILTER = `visitor_id != 'anonymous' AND visitor_id != ''`;
+const E_VISITOR_FILTER = `e.visitor_id != 'anonymous' AND e.visitor_id != ''`;
+
+function addUtcDays(isoDate: string, days: number): string {
+  const d = new Date(isoDate + 'T00:00:00.000Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function parseReportDate(raw: string | undefined): string {
+  if (!raw) return new Date().toISOString().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    throw new Error('invalid_date');
+  }
+  return raw;
+}
+
 app.get('/health', async () => ({
   ok: true,
   queue_depth: getQueueDepth(db),
@@ -138,6 +155,103 @@ app.get('/v1/reports/hourly', async (request) => {
     .all(tenantId, site_id);
 
   return { tenant_id: tenantId, site_id, hourly: rows.reverse() };
+});
+
+app.get('/v1/reports/visitors', async (request, reply) => {
+  const tenantId = requireTenant(request);
+  const { site_id = 's_demo', date: dateParam } = request.query as {
+    site_id?: string;
+    date?: string;
+  };
+
+  let reportDate: string;
+  try {
+    reportDate = parseReportDate(dateParam);
+  } catch {
+    return reply.code(400).send({ error: 'invalid_date' });
+  }
+
+  const cohortDate = addUtcDays(reportDate, -7);
+  const returnWindowStart = addUtcDays(reportDate, -6);
+
+  const uniqueRow = db
+    .prepare(
+      `SELECT COUNT(DISTINCT visitor_id) AS c FROM event_raw
+       WHERE tenant_id = ? AND site_id = ? AND ${VISITOR_FILTER}
+         AND substr(event_time_utc, 1, 10) = ?`
+    )
+    .get(tenantId, site_id, reportDate) as { c: number };
+
+  const newRow = db
+    .prepare(
+      `SELECT COUNT(*) AS c FROM (
+         SELECT visitor_id, MIN(substr(event_time_utc, 1, 10)) AS first_date
+         FROM event_raw
+         WHERE tenant_id = ? AND site_id = ? AND ${VISITOR_FILTER}
+         GROUP BY visitor_id
+       ) WHERE first_date = ?`
+    )
+    .get(tenantId, site_id, reportDate) as { c: number };
+
+  const returningRow = db
+    .prepare(
+      `SELECT COUNT(DISTINCT e.visitor_id) AS c
+       FROM event_raw e
+       INNER JOIN (
+         SELECT visitor_id, MIN(substr(event_time_utc, 1, 10)) AS first_date
+         FROM event_raw
+         WHERE tenant_id = ? AND site_id = ? AND ${VISITOR_FILTER}
+         GROUP BY visitor_id
+       ) fs ON fs.visitor_id = e.visitor_id
+       WHERE e.tenant_id = ? AND e.site_id = ? AND ${E_VISITOR_FILTER}
+         AND substr(e.event_time_utc, 1, 10) = ?
+         AND fs.first_date < ?`
+    )
+    .get(tenantId, site_id, tenantId, site_id, reportDate, reportDate) as { c: number };
+
+  const cohortRow = db
+    .prepare(
+      `SELECT COUNT(DISTINCT visitor_id) AS c FROM event_raw
+       WHERE tenant_id = ? AND site_id = ? AND ${VISITOR_FILTER}
+         AND substr(event_time_utc, 1, 10) = ?`
+    )
+    .get(tenantId, site_id, cohortDate) as { c: number };
+
+  const retainedRow = db
+    .prepare(
+      `SELECT COUNT(DISTINCT c.visitor_id) AS c
+       FROM (
+         SELECT DISTINCT visitor_id
+         FROM event_raw
+         WHERE tenant_id = ? AND site_id = ? AND ${VISITOR_FILTER}
+           AND substr(event_time_utc, 1, 10) = ?
+       ) c
+       INNER JOIN event_raw e ON e.visitor_id = c.visitor_id
+         AND e.tenant_id = ? AND e.site_id = ? AND ${E_VISITOR_FILTER}
+         AND substr(e.event_time_utc, 1, 10) >= ?
+         AND substr(e.event_time_utc, 1, 10) <= ?`
+    )
+    .get(tenantId, site_id, cohortDate, tenantId, site_id, returnWindowStart, reportDate) as {
+    c: number;
+  };
+
+  const cohortSize = cohortRow.c;
+  const retentionReturned = retainedRow.c;
+  const retentionRatePct =
+    cohortSize > 0 ? Math.round((retentionReturned / cohortSize) * 1000) / 10 : 0;
+
+  return {
+    tenant_id: tenantId,
+    site_id,
+    date: reportDate,
+    unique_visitors: uniqueRow.c,
+    new_visitors: newRow.c,
+    returning_visitors: returningRow.c,
+    retention_cohort_date: cohortDate,
+    retention_cohort_size: cohortSize,
+    retention_returned: retentionReturned,
+    retention_rate_pct: retentionRatePct,
+  };
 });
 
 app.get('/v1/privacy/visitors/:visitorId/export', async (request, reply) => {

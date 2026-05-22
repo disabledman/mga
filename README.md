@@ -379,5 +379,6 @@ curl -X DELETE http://localhost:7100/v1/privacy/visitors/<visitor_id> -H "x-tena
 **Query**（Header `x-tenant-id: t_demo`）
 
 - `GET /v1/reports/overview?site_id=s_demo`
+- `GET /v1/reports/visitors?site_id=s_demo` — 不重複訪客、新/回訪客、滾動 7 天留存率（可選 `date=YYYY-MM-DD`）
 - `GET /v1/reports/pages?site_id=s_demo`
 - `GET /v1/reports/clicks?site_id=s_demo`
