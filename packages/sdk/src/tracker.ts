@@ -301,13 +301,52 @@ function trackPage(extra?: Record<string, unknown>): void {
   if (ev) enqueue(ev, hold);
 }
 
+function resolveLinkPagePath(link: HTMLAnchorElement): string {
+  try {
+    const dest = new URL(link.href, location.href);
+    if (dest.origin === location.origin) {
+      return dest.pathname + dest.search;
+    }
+    return dest.href;
+  } catch {
+    return location.pathname + location.search;
+  }
+}
+
+function isSameOriginLink(link: HTMLAnchorElement): boolean {
+  try {
+    return new URL(link.href, location.href).origin === location.origin;
+  } catch {
+    return true;
+  }
+}
+
+function trackLinkPageView(link: HTMLAnchorElement, trackId?: string): void {
+  // Same-origin: PV is counted once on destination page load (trackPage).
+  // Sending page_view here too would double-count after navigation.
+  if (isSameOriginLink(link)) return;
+
+  const hold = Boolean(config?.consentRequired && consent === 'pending');
+  const ev = buildEvent('page_view', {
+    link_click: true,
+    link_url: link.href,
+    ...(trackId ? { track_id: trackId } : {}),
+  });
+  if (!ev) return;
+  ev.page_path = resolveLinkPagePath(link);
+  enqueue(ev, hold);
+}
+
 function trackClick(el: Element): void {
   if (el.closest('.no-track')) return;
   const target = el as HTMLElement;
   if (target.closest('input[type="password"], [autocomplete="current-password"]')) return;
 
+  const link = el.closest('a') as HTMLAnchorElement | null;
   const trackId = el.getAttribute('data-track') ?? undefined;
-  const key = trackId ?? el.tagName + (el.id || '');
+  const effectiveTrackId =
+    trackId ?? (link?.href ? `link:${resolveLinkPagePath(link)}` : undefined);
+  const key = trackId ?? (link?.href ? link.href : el.tagName + (el.id || ''));
   const now = Date.now();
   if (key === lastClickKey && now - lastClickAt < 1000) return;
   lastClickKey = key;
@@ -317,19 +356,25 @@ function trackClick(el: Element): void {
     element_tag: el.tagName.toLowerCase(),
     element_id: el.id || undefined,
   };
-  if (trackId) props.track_id = trackId;
+  if (effectiveTrackId) props.track_id = effectiveTrackId;
 
-  const link = el.closest('a') as HTMLAnchorElement | null;
   if (link?.href) props.link_url = link.href;
 
   const hold = Boolean(config?.consentRequired && consent === 'pending');
 
+  if (link?.href) trackLinkPageView(link, effectiveTrackId);
+
   if (config?.autoTrack?.outboundLinks && link?.href) {
     try {
-      const dest = new URL(link.href);
+      const dest = new URL(link.href, location.href);
       if (dest.origin !== location.origin) {
-        const out = buildEvent('outbound_click', { link_url: link.href, track_id: trackId });
-        if (out) enqueue(out, hold);
+        const outProps: Record<string, unknown> = { link_url: link.href };
+        if (effectiveTrackId) outProps.track_id = effectiveTrackId;
+        const out = buildEvent('outbound_click', outProps);
+        if (out) {
+          if (effectiveTrackId) out.track_id = effectiveTrackId;
+          enqueue(out, hold);
+        }
         return;
       }
     } catch {
@@ -339,7 +384,7 @@ function trackClick(el: Element): void {
 
   const ev = buildEvent('click', props);
   if (!ev) return;
-  if (trackId) ev.track_id = trackId;
+  if (effectiveTrackId) ev.track_id = effectiveTrackId;
   enqueue(ev, hold);
 }
 

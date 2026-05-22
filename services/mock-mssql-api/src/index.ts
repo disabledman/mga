@@ -107,8 +107,10 @@ function resolveTrackId(ev: MssqlEventDto): string | undefined {
   if (ev.track_id) return ev.track_id;
   if (!ev.properties_json) return undefined;
   try {
-    const props = JSON.parse(ev.properties_json) as { track_id?: string };
-    return typeof props.track_id === 'string' ? props.track_id : undefined;
+    const props = JSON.parse(ev.properties_json) as { track_id?: string; link_url?: string };
+    if (typeof props.track_id === 'string') return props.track_id;
+    if (typeof props.link_url === 'string') return `link:${props.link_url}`;
+    return undefined;
   } catch {
     return undefined;
   }
