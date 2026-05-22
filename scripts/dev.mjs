@@ -34,12 +34,29 @@ const services = [
   },
 ];
 
+/** @type {Record<string, string>} */
+const PREFIX_COLORS = {
+  shared: '\x1b[90m',
+  collector: '\x1b[34m',
+  writer: '\x1b[32m',
+  mock: '\x1b[33m',
+  query: '\x1b[35m',
+  dash: '\x1b[36m',
+  dev: '\x1b[37m',
+};
+const RESET = '\x1b[0m';
+
 /** @type {import('node:child_process').ChildProcess[]} */
 const children = [];
 let shuttingDown = false;
 
+function colorPrefix(name) {
+  const color = PREFIX_COLORS[name] ?? '';
+  return `${color}[${name}]${RESET}`;
+}
+
 function prefixLine(name, line) {
-  process.stdout.write(`[${name}] ${line}`);
+  process.stdout.write(`${colorPrefix(name)} ${line}`);
 }
 
 function startService({ name, args, cwd = root }) {
@@ -64,7 +81,7 @@ function startService({ name, args, cwd = root }) {
 
   child.on('exit', (code, signal) => {
     if (shuttingDown) return;
-    console.log(`[${name}] exited (${signal ?? code ?? 0})`);
+    console.log(`${colorPrefix(name)} exited (${signal ?? code ?? 0})`);
     const fromSignal = signal === 'SIGINT' || signal === 'SIGTERM';
     shutdown(fromSignal ? 0 : code ?? 1, fromSignal ? 'signal' : 'exit');
   });
@@ -75,8 +92,8 @@ function shutdown(exitCode = 0, reason = 'signal') {
   shuttingDown = true;
   const msg =
     reason === 'signal'
-      ? '\n[dev] Stopping all services (Ctrl+C)...'
-      : '\n[dev] Stopping all services...';
+      ? `\n${colorPrefix('dev')} Stopping all services (Ctrl+C)...`
+      : `\n${colorPrefix('dev')} Stopping all services...`;
   console.log(msg);
   for (const child of children) {
     if (!child.killed) child.kill('SIGTERM');
@@ -91,4 +108,4 @@ for (const service of services) {
   startService(service);
 }
 
-console.log('[dev] Running: shared, collector, writer, mock, query, dash (Ctrl+C to stop)');
+  console.log(`${colorPrefix('dev')} Running: shared, collector, writer, mock, query, dash (Ctrl+C to stop)`);
