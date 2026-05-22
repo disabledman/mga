@@ -12,13 +12,14 @@
     "node": ">=22.5.0"
   },
   "scripts": {
-    "build": "npm run build -w @mga/shared && npm run build -w @mga/sdk && npm run build --workspaces --if-present",
-    "predev": "npm run build -w @mga/shared && npm run build -w @mga/sdk",
-    "dev": "concurrently --kill-others -n shared,collector,writer,mock,query,dash -c gray,blue,green,yellow,magenta,cyan \"npm run dev -w @mga/shared\" \"tsx watch services/collector/src/index.ts\" \"tsx watch services/writer/src/index.ts\" \"tsx watch services/mock-mssql-api/src/index.ts\" \"tsx watch services/query-api/src/index.ts\" \"node apps/dashboard/server.mjs\"",
+    "build": "npm run build --workspaces --if-present",
+    "predev": "npm run build -w @mga/shared -w @mga/sdk",
+    "dev": "node scripts/dev.mjs",
     "db:init": "node scripts/init-db.mjs",
     "diag:queue": "node scripts/diag-queue.mjs",
     "diag:pipeline": "node scripts/diag-pipeline.mjs",
-    "maintenance:purge": "npm run build -w @mga/shared && node scripts/maintenance.mjs",
+    "premaintenance:purge": "npm run build -w @mga/shared",
+    "maintenance:purge": "node scripts/maintenance.mjs",
     "demo": "npx --yes serve examples -l 7500"
   },
   "devDependencies": {

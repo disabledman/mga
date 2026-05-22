@@ -1,5 +1,37 @@
 import type { AnalyticsEvent, MssqlEventDto } from './types.js';
 
+type HeaderValue = string | string[] | undefined;
+type RequestHeaders = Record<string, HeaderValue>;
+
+const INVALID_COUNTRY_CODES = new Set(['XX', 'T1']);
+
+function headerValue(headers: RequestHeaders, name: string): string | undefined {
+  const raw = headers[name];
+  if (typeof raw === 'string') return raw.trim() || undefined;
+  if (Array.isArray(raw)) return raw[0]?.trim() || undefined;
+  return undefined;
+}
+
+export function extractClientIp(headers: RequestHeaders, fallbackIp?: string): string | undefined {
+  const forwarded = headerValue(headers, 'x-forwarded-for');
+  const raw = forwarded?.split(',')[0]?.trim() || fallbackIp?.trim();
+  return raw || undefined;
+}
+
+export function resolveCountryCode(headers: RequestHeaders): string | undefined {
+  const candidates = [
+    headerValue(headers, 'cf-ipcountry'),
+    headerValue(headers, 'x-country-code'),
+    headerValue(headers, 'x-geo-country'),
+  ];
+  for (const value of candidates) {
+    if (!value) continue;
+    const code = value.toUpperCase();
+    if (code.length === 2 && !INVALID_COUNTRY_CODES.has(code)) return code;
+  }
+  return undefined;
+}
+
 export function anonymizeIp(ip: string | undefined): string | undefined {
   if (!ip) return undefined;
   if (ip.includes('.')) {
@@ -67,6 +99,7 @@ export function toMssqlDto(event: AnalyticsEvent): MssqlEventDto {
     browser: event.browser,
     os: event.os,
     country_code: event.country,
+    client_ip: event.client_ip,
     track_id: event.track_id,
     properties_json: Object.keys(props).length ? JSON.stringify(props) : undefined,
     consent_granted: event.consent_granted,

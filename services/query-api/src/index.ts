@@ -63,7 +63,7 @@ app.get('/v1/reports/overview', async (request) => {
 
   const recent = db
     .prepare(
-      `SELECT event_name, page_path, track_id, event_time_utc
+      `SELECT event_name, page_path, track_id, event_time_utc, country_code, client_ip
        FROM event_raw
        WHERE tenant_id = ? AND site_id = ?
        ORDER BY event_time_utc DESC

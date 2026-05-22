@@ -38,6 +38,7 @@
           "browser": { "type": "string" },
           "os": { "type": "string" },
           "country_code": { "type": "string" },
+          "client_ip": { "type": "string", "maxLength": 45 },
           "track_id": { "type": "string" },
           "properties_json": { "type": "string" },
           "consent_granted": { "type": "boolean" }

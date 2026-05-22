@@ -17,6 +17,7 @@ export interface AnalyticsEvent {
   browser?: string;
   os?: string;
   country?: string;
+  client_ip?: string;
   track_id?: string;
   consent_granted?: boolean;
   properties?: Record<string, unknown>;
@@ -44,6 +45,7 @@ export interface MssqlEventDto {
   browser?: string;
   os?: string;
   country_code?: string;
+  client_ip?: string;
   track_id?: string;
   properties_json?: string;
   consent_granted?: boolean;

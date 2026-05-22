@@ -7,6 +7,7 @@ import {
   anonymizeIp,
   collectPayloadSchema,
   enqueueEvents,
+  extractClientIp,
   getProcessingDepth,
   getQueueDepth,
   hostMatchesAllowed,
@@ -14,6 +15,7 @@ import {
   isBotUserAgent,
   openDb,
   parseAllowedHosts,
+  resolveCountryCode,
   resolveDbPath,
   type SiteConfig,
 } from '@mga/shared';
@@ -158,13 +160,14 @@ app.post('/v1/collect', async (request, reply) => {
     return reply.code(403).send({ error: 'origin_not_allowed', host, allowed_hosts: site.allowed_hosts });
   }
 
-  const clientIp = anonymizeIp(
-    (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || request.ip
-  );
+  const rawIp = extractClientIp(request.headers, request.ip);
+  const clientIp = anonymizeIp(rawIp);
   const rateIpKey = `${site_id}:ip:${clientIp ?? 'unknown'}`;
   if (!checkRate(ipRateMap, rateIpKey, IP_RATE_LIMIT)) {
     return reply.code(429).send({ error: 'rate_limited', scope: 'ip' });
   }
+
+  const countryCode = resolveCountryCode(request.headers);
 
   const accepted = events.filter((e) => {
     if (isBotUserAgent(e.user_agent)) return false;
@@ -181,6 +184,8 @@ app.post('/v1/collect', async (request, reply) => {
     ...e,
     tenant_id: site.tenant_id,
     site_id: site.site_id,
+    country: countryCode ?? e.country,
+    client_ip: rawIp,
     _ingest: { received_at: new Date().toISOString() },
   }));
 

@@ -96,6 +96,14 @@ export function withTransaction(db: MgaDatabase, fn: () => void): void {
   }
 }
 
+function migrateEventRawColumns(db: MgaDatabase): void {
+  const columns = db.prepare(`PRAGMA table_info(event_raw)`).all() as { name: string }[];
+  const names = new Set(columns.map((c) => c.name));
+  if (!names.has('client_ip')) {
+    db.exec(`ALTER TABLE event_raw ADD COLUMN client_ip TEXT`);
+  }
+}
+
 export function initSchema(db: MgaDatabase): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS event_queue (
@@ -140,6 +148,7 @@ export function initSchema(db: MgaDatabase): void {
       browser TEXT,
       os TEXT,
       country_code TEXT,
+      client_ip TEXT,
       track_id TEXT,
       properties_json TEXT,
       consent_granted INTEGER NOT NULL DEFAULT 0,
@@ -176,6 +185,8 @@ export function initSchema(db: MgaDatabase): void {
       PRIMARY KEY (stat_hour, tenant_id, site_id)
     );
   `);
+
+  migrateEventRawColumns(db);
 
   const count = db.prepare('SELECT COUNT(*) AS c FROM analytics_sites').get() as { c: number };
   if (count.c === 0) {

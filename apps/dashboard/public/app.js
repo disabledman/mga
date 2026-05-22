@@ -249,6 +249,8 @@ async function refresh() {
         event_name: r.event_name,
         page_path: r.page_path,
         track_id: r.track_id,
+        country_code: r.country_code,
+        client_ip: r.client_ip,
       };
     });
     fillTable(document.querySelector('#recent tbody'), recentRows, [
@@ -256,6 +258,8 @@ async function refresh() {
       'event_name',
       'page_path',
       'track_id',
+      'country_code',
+      'client_ip',
     ]);
 
     const hourlyRes = await api('/hourly?site_id=s_demo');

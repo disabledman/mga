@@ -29,6 +29,8 @@ Authorization: Bearer <MGA_MSSQL_API_TOKEN>
       "visitor_id": "64-char-hex",
       "page_path": "/checkout",
       "track_id": "checkout_btn",
+      "country_code": "TW",
+      "client_ip": "203.74.1.1",
       "properties_json": "{\"track_id\":\"checkout_btn\"}",
       "consent_granted": true
     }
@@ -49,6 +51,15 @@ Authorization: Bearer <MGA_MSSQL_API_TOKEN>
 | 409 | 視為成功（冪等） |
 | 429/503/5xx | 指數退避重試 |
 | 其他 4xx | DLQ |
+
+### 選用欄位（Collector 伺服器端 enrich）
+
+| 欄位 | 說明 |
+|------|------|
+| `country_code` | ISO 3166-1 alpha-2，由 Collector 從反向代理 Header 解析 |
+| `client_ip` | 來訪者完整 IP（IPv4/IPv6） |
+
+Collector 支援的 Geo Header（優先順序）：`CF-IPCountry` → `X-Country-Code` → `X-Geo-Country`。無效值（如 `XX`、`T1`）會略過。
 
 ## POST /internal/analytics/events/dedupe-check（可選）
 

@@ -17,12 +17,12 @@ const insertEvent = db.prepare(`
   INSERT OR IGNORE INTO event_raw (
     event_id, tenant_id, site_id, event_name, event_time_utc,
     session_id, visitor_id, page_url, page_path, referrer,
-    user_agent, device_type, browser, os, country_code,
+    user_agent, device_type, browser, os, country_code, client_ip,
     track_id, properties_json, consent_granted
   ) VALUES (
     @event_id, @tenant_id, @site_id, @event_name, @event_time_utc,
     @session_id, @visitor_id, @page_url, @page_path, @referrer,
-    @user_agent, @device_type, @browser, @os, @country_code,
+    @user_agent, @device_type, @browser, @os, @country_code, @client_ip,
     @track_id, @properties_json, @consent_granted
   )
 `);
@@ -131,6 +131,7 @@ function mapRow(ev: MssqlEventDto) {
     browser: ev.browser ?? null,
     os: ev.os ?? null,
     country_code: ev.country_code ?? null,
+    client_ip: ev.client_ip ?? null,
     track_id: ev.track_id ?? null,
     properties_json: ev.properties_json ?? null,
     consent_granted: ev.consent_granted ? 1 : 0,

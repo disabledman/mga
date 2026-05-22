@@ -20,6 +20,7 @@ CREATE TABLE analytics.EventRaw (
     Browser          NVARCHAR(64)     NULL,
     Os               NVARCHAR(64)     NULL,
     CountryCode      CHAR(2)          NULL,
+    ClientIp         NVARCHAR(45)     NULL,
     TrackId          NVARCHAR(128)    NULL,
     PropertiesJson   NVARCHAR(MAX)    NULL,
     ConsentGranted   BIT              NOT NULL DEFAULT 0,
