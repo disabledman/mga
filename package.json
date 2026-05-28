@@ -16,6 +16,8 @@
     "predev": "npm run build -w @mga/shared -w @mga/sdk",
     "dev": "node scripts/dev.mjs",
     "db:init": "node scripts/init-db.mjs",
+    "predb:reset": "npm run build -w @mga/shared",
+    "db:reset": "node scripts/reset-db.mjs",
     "diag:queue": "node scripts/diag-queue.mjs",
     "diag:pipeline": "node scripts/diag-pipeline.mjs",
     "premaintenance:purge": "npm run build -w @mga/shared",

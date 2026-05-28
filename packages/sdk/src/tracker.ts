@@ -393,7 +393,8 @@ function onDocumentClick(e: MouseEvent): void {
   const selector = config.clickSelector ?? '[data-track], a, button, [role="button"]';
   const target = e.target as Element | null;
   if (!target) return;
-  const el = target.closest(selector);
+  const trackEl = target.closest('[data-track]');
+  const el = trackEl ?? target.closest(selector);
   if (el) trackClick(el);
 }
 

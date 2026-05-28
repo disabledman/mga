@@ -71,6 +71,7 @@ Demo 預設 `consentRequired: false` 並自動 `consent('grant')`，可直接點
 npm run diag:pipeline    # 端到端：health → collect → writer flush
 npm run diag:queue       # 佇列狀態；加 --reset 重設卡住的 processing
 npm run db:init          # 初始化 DB、合併 LAN allowed_hosts、reclaim 佇列
+npm run db:reset         # 清空全部分析資料後重建 DB（需先停 dev/PM2）
 ```
 
 終端機應依序出現 `[collector] collect accepted` 與 `[writer] flushed`；若只有前者，見下方「常見錯誤」。
@@ -344,15 +345,55 @@ Mock API 行為可參考 [services/mock-mssql-api/src/index.ts](services/mock-ms
 
 ## 維運
 
+### 清空資料庫、重新開始記錄
+
+本機 Mock 環境的佇列、事件、彙總表都在 SQLite（預設 `data/mga.db`）。若要**刪除全部分析資料**並從零開始（保留/重建 Demo 站點設定）：
+
+1. **先停止**所有 MGA 程序（`Ctrl+C` 結束 `npm run dev`，或停止 PM2 的 collector / writer / mock-mssql-api / query-api / dashboard）。程序仍佔用 DB 時刪除會失敗。
+2. 在專案根目錄執行：
+
 ```bash
-# 資料保留清理（EventRaw TTL）
+npm run db:reset
+```
+
+會刪除 `data/mga.db` 以及 WAL/SHM 附檔，接著等同執行 `npm run db:init`（建立 schema、種子 `s_demo`、合併 LAN `allowed_hosts`、reclaim 卡住佇列）。
+3. **重新啟動**服務後再送事件：
+
+```bash
+npm run dev
+```
+
+手動做法（與 `db:reset` 相同，需先停服務）：
+
+```bash
+# Linux / macOS
+rm -f data/mga.db data/mga.db-wal data/mga.db-shm
+npm run db:init
+```
+
+```powershell
+# Windows PowerShell
+Remove-Item -Force -ErrorAction SilentlyContinue data/mga.db, data/mga.db-wal, data/mga.db-shm
+npm run db:init
+```
+
+| 指令 | 用途 |
+|------|------|
+| `npm run db:reset` | **全部清空**後重建 DB（開發/測試用） |
+| `npm run db:init` | 僅初始化或修補 schema / `allowed_hosts`（**不刪**既有事件） |
+| `npm run maintenance:purge` | 依保留天數刪除**過期** `event_raw`（非全清） |
+
+若已對接**公司真實 MSSQL API**，本機 `db:reset` 只清 SQLite；遠端 `analytics.EventRaw` 與彙總表需依公司維運流程另行處理。
+
+```bash
+# 資料保留清理（EventRaw TTL，非全清）
 npm run maintenance:purge
 
 # 佇列 / 端到端診斷
 npm run diag:queue
 npm run diag:pipeline
 
-# DB 初始化、LAN allowed_hosts、reclaim 卡住佇列
+# DB 初始化、LAN allowed_hosts、reclaim 卡住佇列（不刪既有資料）
 npm run db:init
 
 # DLQ 重放（需 x-admin-token）
