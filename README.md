@@ -1,6 +1,6 @@
 # MGA — Multi-tenant Web Analytics
 
-<img width="1858" height="932" alt="image" src="https://github.com/user-attachments/assets/d8214e96-86bd-4d0e-9b78-3beac89292ba" />
+<img width="1920" height="1032" alt="image" src="https://github.com/user-attachments/assets/1a195b69-ab41-4673-b9a6-5df43824c8e8" />
 
 
 依 PLAN 實作的 GA 類網頁行為監控：**SDK → Collect API → Queue → Writer → 公司 MSSQL 寫入 API**。
