@@ -305,9 +305,83 @@ Nginx 需轉發：`/sdk/tracker.js`、`/v1/collect`、`/v1/collect/beacon`。
 
 使用者同意 Cookie 後再呼叫 `analytics('consent', 'grant')`。完整選項說明見上方「嵌入 SDK」。
 
-並在 DB `analytics_sites.allowed_hosts` 加入正式站網域（例：`pmatch.com.tw`、`www.pmatch.com.tw`），否則 Collect 回 `403 origin_not_allowed`。
+並在 DB 設定正式站（見下方「SQLite 站點設定」）；`allowed_hosts` 須含正式頁 hostname（例：`pmatch.com.tw`、`www.pmatch.com.tw`），否則 Collect 回 `403 origin_not_allowed`。
 
-### 6. 檢查清單
+### 6. SQLite 站點設定（`analytics_sites`）
+
+Collect 驗證用的站點在 **SQLite**（`.env` 的 `MGA_DB_PATH`，預設 `data/mga.db`），表名 `analytics_sites`。
+
+**新 DB** 在 `analytics_sites` 為空時，`npm run db:init` 或首次啟動服務只會自動插入 **Demo 站**（`s_demo` / `wk_demo_change_in_production`），不會建立正式站；正式上線需手動 **INSERT** 或 **UPDATE**。
+
+| 欄位 | 說明 |
+|------|------|
+| `site_id` | 對應前端 `siteId` |
+| `tenant_id` | 入庫事件的 tenant（Collector 以 DB 為準） |
+| `write_key` | 對應前端 `writeKey`，**全表唯一**，8–64 字元 |
+| `allowed_hosts` | JSON 字串陣列，例：`["pmatch.com.tw","www.pmatch.com.tw"]` |
+| `is_active` | `1` 才接受 Collect；`0` 為停用 |
+
+操作前確認所有 MGA 服務使用的 `MGA_DB_PATH` 一致（Collector 啟動 log 會印 DB 路徑）。修改後無需重啟 Collector 即可生效；建議改完以正式頁或 curl 測 `POST /v1/collect`（204 / 401 / 403）。
+
+#### 新增正式站（INSERT）
+
+```sql
+INSERT INTO analytics_sites (site_id, tenant_id, name, write_key, allowed_hosts, is_active)
+VALUES (
+  's_prod',
+  't_prod',
+  'Pmatch 正式',
+  'wk_你的正式金鑰',
+  '["pmatch.com.tw","www.pmatch.com.tw"]',
+  1
+);
+```
+
+前端 `init` 的 `siteId` / `writeKey` / `tenantId` 須與上列一致（入庫 `tenant_id` 仍以 DB 為準）。  
+查報表時 Query API 需帶 `x-tenant-id: t_prod`、`?site_id=s_prod`（預設為 `t_demo` / `s_demo`）。
+
+#### 更新既有站（UPDATE）
+
+沿用 `s_demo` 或更換 write key、網域、tenant 名稱：
+
+```sql
+UPDATE analytics_sites
+SET
+  write_key = 'wk_新的金鑰',
+  tenant_id = 't_prod',
+  name = '正式站',
+  allowed_hosts = '["pmatch.com.tw","www.pmatch.com.tw"]'
+WHERE site_id = 's_demo';
+```
+
+`write_key` 不可與其他列重複。僅補允許的 Origin hostname 時，可只更新 `allowed_hosts`；LAN 開發亦可 `MGA_DEMO_ALLOWED_HOSTS=網域1,網域2` 後執行 `npm run db:init`（**僅合併 `s_demo` 的 `allowed_hosts`**，不改 write key）。
+
+#### 停用站點（不再接受 Collect）
+
+```sql
+UPDATE analytics_sites SET is_active = 0 WHERE site_id = 's_demo';
+```
+
+停用後該 `site_id` 的 Collect 回 **401**（`loadSite` 只載入 `is_active = 1`）。若要恢復：
+
+```sql
+UPDATE analytics_sites SET is_active = 1 WHERE site_id = 's_demo';
+```
+
+#### 驗證
+
+```bash
+# 需 sqlite3 CLI；Windows 可改用 DB Browser for SQLite
+sqlite3 data/mga.db "SELECT site_id, tenant_id, write_key, allowed_hosts, is_active FROM analytics_sites;"
+```
+
+| Collect 結果 | 常見原因 |
+|--------------|----------|
+| **401** | `site_id` 不存在、`is_active = 0`、或 `write_key` 不符 |
+| **403** | 頁面 hostname 不在 `allowed_hosts` |
+| **204** | 成功 |
+
+### 7. 檢查清單
 
 1. `npm run build` 成功，`packages/sdk/dist/tracker.js` 存在
 2. 五個程序皆在跑（至少 collector + writer + 寫入 API + query + dashboard）
